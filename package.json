@@ -1,6 +1,6 @@
 {
   "name": "@hejfelix/bs-generic-parser",
-  "version": "0.0.1",
+  "version": "0.1.1",
   "scripts": {
     "build": "bsb -make-world",
     "start": "bsb -make-world -w -ws _ ",
@@ -14,6 +14,10 @@
     "Parsing",
     "Parser",
     "parser-combinators"
+  ],
+  "files": [
+    "src/",
+    "bsconfig.json"
   ],
   "author": "Felix Bjært Hargreaves",
   "license": "MIT",
