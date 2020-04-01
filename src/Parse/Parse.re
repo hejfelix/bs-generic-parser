@@ -1,4 +1,3 @@
-
 type parseResult('a, 'token) =
   | Success({
       parsed: 'a,
@@ -125,22 +124,14 @@ let flatMapCase:
   };
 
 let rec repeatStar: parser('token, 'a) => parser('token, list('a)) =
-  parser => {
-    let basdf =
-      flatMapCase(
-        x => {
-          Js.Console.log({j|flatmapcase: $x|j});
-          switch (x) {
-          | Failure(_) => pure([])
-          | Success({parsed, _}) =>
-            map(rest => List.cons(parsed, rest), repeatStar(parser))
-          };
-        },
-        parser,
-      );
-
-    basdf;
-  };
+  parser =>
+    flatMapCase(
+      fun
+      | Failure(_) => pure([])
+      | Success({parsed, _}) =>
+        map(rest => List.cons(parsed, rest), repeatStar(parser)),
+      parser,
+    );
 
 let rec repeat: (int, parser('token, 'a)) => parser('token, list('a)) =
   (n, parser) =>
@@ -151,4 +142,22 @@ let rec repeat: (int, parser('token, 'a)) => parser('token, list('a)) =
         first => map(rest => List.cons(first, rest), repeat(n - 1, parser)),
         parser,
       )
-    } /*   }*/ /*   parser => */ /* let rec repeatStar: parser('token,'a) => parser('token,list('a)) */;
+    };
+
+let choice: parser('token, 'a) => parser('token,'a) => parser('token,'a) = (parserA,parserB) => {
+
+  let p = (tokens,_) => {
+    let resA = tokens |> (parserA |> parse)
+    let resB = tokens |> (parserB |> parse)
+    switch( (resA, resB)){
+      | (Success(_),_) => resA
+      | (Failure(_),Success(_)) => resB
+      | (Failure({description:descriptionA,remaining:_}),Failure({description:descriptionB,remaining:_})) => 
+        Failure({description: descriptionA ++ " AND " ++ descriptionB, remaining: tokens})
+    }
+  };
+  open Belt;
+  let labelA = parserA.label -> Option.getWithDefault("");
+  let labelB = parserB.label -> Option.getWithDefault("");
+  {run: p,label: Some(labelA ++ " | " ++ labelB)}
+}
