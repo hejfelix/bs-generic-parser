@@ -4,6 +4,8 @@ var List = require("bs-platform/lib/js/list.js");
 var Block = require("bs-platform/lib/js/block.js");
 var Curry = require("bs-platform/lib/js/curry.js");
 var Caml_obj = require("bs-platform/lib/js/caml_obj.js");
+var Belt_Option = require("bs-platform/lib/js/belt_Option.js");
+var Caml_option = require("bs-platform/lib/js/caml_option.js");
 
 function pure(p) {
   return {
@@ -44,6 +46,18 @@ function success(p) {
                       ]);
             }),
           label: "Pure " + (String(p) + "")
+        };
+}
+
+function fail(description) {
+  return {
+          run: (function (remaining, param) {
+              return /* Failure */Block.__(1, [
+                        /* description */description,
+                        /* remaining */remaining
+                      ]);
+            }),
+          label: "Fail " + (String(description) + "")
         };
 }
 
@@ -160,13 +174,68 @@ function flatMapCase(fab, parserA) {
         };
 }
 
+function mapCase(f, parser) {
+  return flatMapCase((function (r) {
+                return pureRes(Curry._1(f, r));
+              }), parser);
+}
+
+function keep(parser) {
+  var run = parser.run;
+  return {
+          run: (function (tokens, label) {
+              var match = Curry._2(run, tokens, label);
+              if (match.tag) {
+                return /* Failure */Block.__(1, [
+                          /* description */match[/* description */0],
+                          /* remaining */tokens
+                        ]);
+              } else {
+                return /* Success */Block.__(0, [
+                          /* parsed */match[/* parsed */0],
+                          /* remaining */tokens
+                        ]);
+              }
+            }),
+          label: "keep"
+        };
+}
+
+function sequence(param) {
+  if (param) {
+    var tail = sequence(param[1]);
+    return flatMap((function (a) {
+                  return map((function (aas) {
+                                return List.cons(a, aas);
+                              }), tail);
+                }), param[0]);
+  } else {
+    return pure(/* [] */0);
+  }
+}
+
+function opt(parser) {
+  return mapCase((function (param) {
+                if (param.tag) {
+                  return /* Success */Block.__(0, [
+                            /* parsed */undefined,
+                            /* remaining */param[/* remaining */1]
+                          ]);
+                } else {
+                  return /* Success */Block.__(0, [
+                            /* parsed */Caml_option.some(param[/* parsed */0]),
+                            /* remaining */param[/* remaining */1]
+                          ]);
+                }
+              }), parser);
+}
+
 function repeatStar(parser) {
-  return flatMapCase((function (x) {
-                console.log("flatmapcase: " + (String(x) + ""));
-                if (x.tag) {
+  return flatMapCase((function (param) {
+                if (param.tag) {
                   return pure(/* [] */0);
                 } else {
-                  var parsed = x[/* parsed */0];
+                  var parsed = param[/* parsed */0];
                   return map((function (rest) {
                                 return List.cons(parsed, rest);
                               }), repeatStar(parser));
@@ -186,9 +255,35 @@ function repeat(n, parser) {
   }
 }
 
+function choice(parserA, parserB) {
+  var p = function (tokens, param) {
+    var resA = parse(parserA, tokens);
+    var resB = parse(parserB, tokens);
+    if (resA.tag) {
+      if (resB.tag) {
+        return /* Failure */Block.__(1, [
+                  /* description */resA[/* description */0] + (" AND " + resB[/* description */0]),
+                  /* remaining */tokens
+                ]);
+      } else {
+        return resB;
+      }
+    } else {
+      return resA;
+    }
+  };
+  var labelA = Belt_Option.getWithDefault(parserA.label, "");
+  var labelB = Belt_Option.getWithDefault(parserB.label, "");
+  return {
+          run: p,
+          label: labelA + (" | " + labelB)
+        };
+}
+
 exports.pure = pure;
 exports.drop = drop;
 exports.success = success;
+exports.fail = fail;
 exports.pureRes = pureRes;
 exports.label = label;
 exports.parse = parse;
@@ -198,6 +293,11 @@ exports.flatMap = flatMap;
 exports.flatten = flatten;
 exports.map = map;
 exports.flatMapCase = flatMapCase;
+exports.mapCase = mapCase;
+exports.keep = keep;
+exports.sequence = sequence;
+exports.opt = opt;
 exports.repeatStar = repeatStar;
 exports.repeat = repeat;
+exports.choice = choice;
 /* No side effect */
