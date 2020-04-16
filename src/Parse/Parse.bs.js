@@ -45,7 +45,7 @@ function success(p) {
                         /* remaining */drop(1, tokens)
                       ]);
             }),
-          label: "Pure " + (String(p) + "")
+          label: "Success " + (String(p) + "")
         };
 }
 
